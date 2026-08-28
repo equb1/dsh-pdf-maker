@@ -46,7 +46,7 @@ export function statusTool(ctx: Context, timeoutMs: number) {
   return defineTool({
     name: 'pdf_status',
     description:
-      'List trunk and worktree state for a PDF file, including page counts and draft lifecycles. Call this before choosing a worktreeId.',
+      'Inspect a PDF file (trunk or draft worktree): returns page count, page dimensions (width/height), existing interactive AcroForm fields (names, rects, values), and draft worktrees. Always call this first before editing to inspect layout and field names.',
     timeoutMs,
     parameters: {
       file: {

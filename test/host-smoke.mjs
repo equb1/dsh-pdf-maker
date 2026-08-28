@@ -11,13 +11,15 @@ const file = join(root, 'sample.pdf')
 const workspace = root
 try {
   const document = await PDFDocument.create()
-  document.addPage()
+  document.addPage([595.28, 841.89])
   const bytes = await document.save()
   await writeFile(file, bytes)
 
   const { createWorktree, listWorktrees, requireDraft, applyReviewAction } =
     await import('../src/host/provider/worktree-operations.ts')
-  const { applyEdits } = await import('../src/host/provider/pdf-operations.ts')
+  const { applyEdits, inspectDocument } = await import(
+    '../src/host/provider/pdf-operations.ts'
+  )
 
   const draft = await createWorktree(workspace, file, 'review')
   assert(draft.lifecycle === 'draft', 'draft lifecycle')
@@ -29,8 +31,46 @@ try {
   const draftPath = await requireDraft(workspace, file, draft.worktreeId)
   const { pageCount } = await applyEdits(draftPath, [
     { kind: 'text', page: 1, x: 50, y: 50, text: 'hello' },
+    {
+      kind: 'form_create',
+      page: 1,
+      fieldName: 'contract_title',
+      x: 100,
+      y: 700,
+      width: 200,
+      height: 25,
+      style: 'underline',
+      defaultValue: '服务协议',
+      fontSize: 12,
+    },
+    {
+      kind: 'line',
+      page: 1,
+      x1: 50,
+      y1: 650,
+      x2: 500,
+      y2: 650,
+      thickness: 1,
+      color: '#CCCCCC',
+    },
   ])
   assert(pageCount === 1, 'page count preserved')
+
+  // Verify inspection
+  const inspected = await inspectDocument(await readFile(draftPath))
+  assert(inspected.pageCount === 1, 'inspection page count')
+  assert(inspected.pages.length === 1, 'inspection pages length')
+  assert(inspected.pages[0]?.width === 595.28, 'inspection page width')
+  assert(inspected.pages[0]?.height === 841.89, 'inspection page height')
+  assert(inspected.formFields.length === 1, 'inspection form field found')
+  assert(
+    inspected.formFields[0]?.name === 'contract_title',
+    'inspection form field name',
+  )
+  assert(
+    inspected.formFields[0]?.value === '服务协议',
+    'inspection form field value',
+  )
 
   const ready = await applyReviewAction(
     workspace,

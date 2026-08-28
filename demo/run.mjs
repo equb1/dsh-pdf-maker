@@ -55,21 +55,30 @@ async function generateSource() {
   }
 
   const form = doc.getForm()
-  const mkField = (name, x, y, w = 150) => {
+  const mkUnderlineField = (name, x, y, w = 140, h = 20) => {
     const f = form.createTextField(name)
     f.setText('')
-    f.addToPage(page, { x, y, width: w, height: 22, borderColor: rgb(0.3, 0.3, 0.3), borderWidth: 1 })
+    f.addToPage(page, { x, y, width: w, height: h, borderWidth: 0 })
+    page.drawLine({
+      start: { x, y },
+      end: { x + w, y },
+      thickness: 0.75,
+      color: rgb(0.65, 0.65, 0.65),
+    })
     f.enableReadOnly(false)
+    f.setFontSize(11)
     return f
   }
-  mkField('contract_no', 470, H - 72, 110)
-  mkField('party_a', 70, H - 235, 200)
-  mkField('party_b', 70, H - 257, 200)
-  mkField('signer', 70, H - 520, 180)
-  mkField('sign_date', 330, H - 520, 150)
 
-  page.drawText('签署人：', { x: 70, y: H - 530, size: 12, font: cjk })
-  page.drawText('日期：', { x: 330, y: H - 530, size: 12, font: cjk })
+  // 右上角：合同编号
+  mkUnderlineField('contract_no', 455, H - 64, 110, 18)
+
+  // 底部签署区：标签与下划线输入框水平对齐
+  page.drawText('签署人：', { x: 70, y: H - 480, size: 12, font: cjk })
+  mkUnderlineField('signer', 130, H - 484, 140, 20)
+
+  page.drawText('日期：', { x: 320, y: H - 480, size: 12, font: cjk })
+  mkUnderlineField('sign_date', 365, H - 484, 120, 20)
 
   const bytes = await doc.save({ useObjectStreams: false })
   await writeFile(out, bytes)

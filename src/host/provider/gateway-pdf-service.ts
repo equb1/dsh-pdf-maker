@@ -7,7 +7,11 @@ import { pdfError } from '../service/errors.ts'
 import type { WorktreeId } from '../service/identifiers.ts'
 import { PdfService } from '../service/pdf-service.ts'
 import type { PdfServiceMethods } from '../service/types.ts'
-import { applyEdits, createEmptyPdf } from './pdf-operations.ts'
+import {
+  applyEdits,
+  createEmptyPdf,
+  inspectDocument,
+} from './pdf-operations.ts'
 import { renderScreenshot } from './render-operations.ts'
 import {
   applyReviewAction,
@@ -39,7 +43,6 @@ export class GatewayPdfService extends PdfService {
   async fileState(
     request: Parameters<PdfServiceMethods['fileState']>[0],
   ): ReturnType<PdfServiceMethods['fileState']> {
-    const { stat } = await import('node:fs/promises')
     const info = await stat(request.file).catch(() => null)
     if (info === null)
       return {
@@ -50,10 +53,15 @@ export class GatewayPdfService extends PdfService {
         gatewayOrigin: this.supervisor.origin,
       }
     const bytes = await readFile(request.file)
+    const inspection = await inspectDocument(bytes).catch(() => null)
     return {
       file: request.file,
       exists: true,
-      pageCount: await pageCountOf(bytes),
+      pageCount: inspection?.pageCount ?? (await pageCountOf(bytes)),
+      ...(inspection?.pages !== undefined ? { pages: inspection.pages } : {}),
+      ...(inspection?.formFields !== undefined
+        ? { formFields: inspection.formFields }
+        : {}),
       worktrees: await listWorktrees(request.workspace, request.file),
       gatewayOrigin: this.supervisor.origin,
     }
@@ -76,13 +84,27 @@ export class GatewayPdfService extends PdfService {
   async status(
     request: Parameters<PdfServiceMethods['status']>[0],
   ): ReturnType<PdfServiceMethods['status']> {
+    const targetFile =
+      request.worktreeId === undefined
+        ? request.file
+        : ((await requireDraft(
+            request.workspace,
+            request.file,
+            request.worktreeId as WorktreeId,
+          )) as unknown as Parameters<
+            PdfServiceMethods['fileState']
+          >[0]['file'])
     const state = await this.fileState({
       workspace: request.workspace,
-      file: request.file,
+      file: targetFile,
     })
     if (!state.exists)
       throw pdfError('file does not exist', 'INVALID_FILE_PATH')
-    return state
+    return {
+      ...state,
+      file: request.file,
+      worktrees: await listWorktrees(request.workspace, request.file),
+    }
   }
 
   async worktree(

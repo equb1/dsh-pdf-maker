@@ -11,7 +11,7 @@ export function editTool(ctx: Context, timeoutMs: number) {
   return defineTool({
     name: 'pdf_edit',
     description:
-      'Apply structured edits (form fill or text) to an isolated draft worktree of a PDF, then ready it for review. Never edits the trunk directly.',
+      'Apply structured edits (form fill, form_create, line, or text) to an isolated draft worktree of a PDF, then ready it for review. Never edits the trunk directly.',
     timeoutMs,
     parameters: {
       file: {
@@ -27,13 +27,18 @@ export function editTool(ctx: Context, timeoutMs: number) {
       edits: {
         type: 'array',
         required: true,
-        description: 'Structured edits to apply.',
+        description:
+          'Structured edits to apply (form, form_create, text, or line).',
         items: {
           type: 'object',
-          required: true,
           additionalProperties: false,
           properties: {
-            kind: { type: 'string', required: true, enum: ['form', 'text'] },
+            kind: {
+              type: 'string',
+              required: true,
+              enum: ['form', 'form_create', 'text', 'line'],
+              description: 'Edit command kind.',
+            },
             page: {
               type: 'integer',
               required: true,
@@ -41,29 +46,77 @@ export function editTool(ctx: Context, timeoutMs: number) {
             },
             fieldName: {
               type: 'string',
-              description: 'Form field name when kind is form.',
+              description: 'Form field name when kind is form or form_create.',
             },
             value: {
               type: 'string',
               description: 'Form field value when kind is form.',
             },
+            defaultValue: {
+              type: 'string',
+              description: 'Initial value when kind is form_create.',
+            },
+            style: {
+              type: 'string',
+              enum: ['underline', 'light', 'borderless'],
+              description:
+                'Form field visual style when kind is form_create. Defaults to underline.',
+            },
+            fontSize: {
+              type: 'number',
+              description: 'Optional font size for text or form field value.',
+            },
             x: {
               type: 'number',
-              description: 'Text x position in PDF points when kind is text.',
+              description:
+                'X position in PDF points when kind is text or form_create.',
             },
             y: {
               type: 'number',
               description:
-                'Text baseline y position in PDF points when kind is text.',
+                'Y position (baseline for text, bottom-left for form_create) in PDF points.',
+            },
+            width: {
+              type: 'number',
+              description:
+                'Field width in PDF points when kind is form_create.',
+            },
+            height: {
+              type: 'number',
+              description:
+                'Field height in PDF points when kind is form_create.',
             },
             text: {
               type: 'string',
               description: 'Text to draw when kind is text.',
             },
-            size: { type: 'number', description: 'Optional font size.' },
+            size: {
+              type: 'number',
+              description: 'Optional font size when kind is text.',
+            },
             color: {
               type: 'string',
-              description: 'Optional #rrggbb text color.',
+              description: 'Optional #rrggbb color for text or line.',
+            },
+            x1: {
+              type: 'number',
+              description: 'Start X in PDF points when kind is line.',
+            },
+            y1: {
+              type: 'number',
+              description: 'Start Y in PDF points when kind is line.',
+            },
+            x2: {
+              type: 'number',
+              description: 'End X in PDF points when kind is line.',
+            },
+            y2: {
+              type: 'number',
+              description: 'End Y in PDF points when kind is line.',
+            },
+            thickness: {
+              type: 'number',
+              description: 'Line thickness in points when kind is line.',
             },
           },
         },
@@ -170,7 +223,56 @@ function parseEditCommands(values: readonly unknown[]): PdfEditCommand[] {
         throw pdfError('form edits require fieldName', 'INVALID_REQUEST')
       if (typeof text !== 'string')
         throw pdfError('form edits require a string value', 'INVALID_REQUEST')
-      return { kind: 'form', page, fieldName, value: text }
+      return {
+        kind: 'form',
+        page,
+        fieldName,
+        value: text,
+        ...(typeof record.fontSize === 'number'
+          ? { fontSize: record.fontSize }
+          : {}),
+      }
+    }
+    if (record.kind === 'form_create') {
+      const fieldName = record.fieldName
+      const x = record.x
+      const y = record.y
+      const width = record.width
+      const height = record.height
+      if (typeof fieldName !== 'string' || fieldName.length === 0)
+        throw pdfError('form_create edits require fieldName', 'INVALID_REQUEST')
+      if (
+        typeof x !== 'number' ||
+        typeof y !== 'number' ||
+        typeof width !== 'number' ||
+        typeof height !== 'number'
+      ) {
+        throw pdfError(
+          'form_create edits require numeric x, y, width, and height',
+          'INVALID_REQUEST',
+        )
+      }
+      const style = record.style
+      const validStyle =
+        style === 'underline' || style === 'light' || style === 'borderless'
+          ? style
+          : undefined
+      return {
+        kind: 'form_create',
+        page,
+        fieldName,
+        x,
+        y,
+        width,
+        height,
+        ...(validStyle !== undefined ? { style: validStyle } : {}),
+        ...(typeof record.defaultValue === 'string'
+          ? { defaultValue: record.defaultValue }
+          : {}),
+        ...(typeof record.fontSize === 'number'
+          ? { fontSize: record.fontSize }
+          : {}),
+      }
     }
     if (record.kind === 'text') {
       const x = record.x
@@ -190,6 +292,38 @@ function parseEditCommands(values: readonly unknown[]): PdfEditCommand[] {
         ...(typeof record.color === 'string' ? { color: record.color } : {}),
       }
     }
-    throw pdfError('each edit kind must be form or text', 'INVALID_REQUEST')
+    if (record.kind === 'line') {
+      const x1 = record.x1
+      const y1 = record.y1
+      const x2 = record.x2
+      const y2 = record.y2
+      if (
+        typeof x1 !== 'number' ||
+        typeof y1 !== 'number' ||
+        typeof x2 !== 'number' ||
+        typeof y2 !== 'number'
+      ) {
+        throw pdfError(
+          'line edits require numeric x1, y1, x2, and y2',
+          'INVALID_REQUEST',
+        )
+      }
+      return {
+        kind: 'line',
+        page,
+        x1,
+        y1,
+        x2,
+        y2,
+        ...(typeof record.thickness === 'number'
+          ? { thickness: record.thickness }
+          : {}),
+        ...(typeof record.color === 'string' ? { color: record.color } : {}),
+      }
+    }
+    throw pdfError(
+      'each edit kind must be form, form_create, text, or line',
+      'INVALID_REQUEST',
+    )
   })
 }

@@ -58,6 +58,19 @@ export type PdfEditCommand =
       readonly page: number
       readonly fieldName: string
       readonly value: string
+      readonly fontSize?: number
+    }
+  | {
+      readonly kind: 'form_create'
+      readonly page: number
+      readonly fieldName: string
+      readonly x: number
+      readonly y: number
+      readonly width: number
+      readonly height: number
+      readonly style?: 'underline' | 'light' | 'borderless'
+      readonly defaultValue?: string
+      readonly fontSize?: number
     }
   | {
       readonly kind: 'text'
@@ -66,6 +79,16 @@ export type PdfEditCommand =
       readonly y: number
       readonly text: string
       readonly size?: number
+      readonly color?: string
+    }
+  | {
+      readonly kind: 'line'
+      readonly page: number
+      readonly x1: number
+      readonly y1: number
+      readonly x2: number
+      readonly y2: number
+      readonly thickness?: number
       readonly color?: string
     }
 
