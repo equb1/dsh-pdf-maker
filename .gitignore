@@ -1,0 +1,10 @@
+node_modules/
+lib/
+artifacts/
+dist/
+*.tgz
+.DS_Store
+
+# generated demo output / runtime worktree state
+demo/render/
+demo/worktrees/

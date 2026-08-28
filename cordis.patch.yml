@@ -1,0 +1,4 @@
+# DSH × PDF bundle patch: inserts this plugin into a profile's layer stack.
+- insert:
+    - id: pdf
+      name: 'dsh-pdf-maker'
