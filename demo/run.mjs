@@ -61,7 +61,7 @@ async function generateSource() {
     f.addToPage(page, { x, y, width: w, height: h, borderWidth: 0 })
     page.drawLine({
       start: { x, y },
-      end: { x + w, y },
+      end: { x: x + w, y },
       thickness: 0.75,
       color: rgb(0.65, 0.65, 0.65),
     })

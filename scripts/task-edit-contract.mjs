@@ -4,11 +4,10 @@
  *   inspect -> create draft worktree -> fill/create form fields -> red review
  *   annotation -> mark ready, then render before/after previews.
  */
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { PDFDocument } from 'pdf-lib'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
-const ROOT = import.meta.dirname + '/..'
+const ROOT = `${import.meta.dirname}/..`
 const FILE = join(ROOT, 'demo/source/contract.pdf')
 const WORKSPACE = join(ROOT) // trunk dir; provider stores drafts under workspace/.dsh-pdf-maker/worktrees
 
@@ -32,13 +31,22 @@ console.log('   pageCount:', inspected.pageCount)
 console.log('   pages:', JSON.stringify(inspected.pages))
 console.log('   formFields:')
 for (const f of inspected.formFields) {
-  console.log(`     - ${f.name} [${f.type}] value=${JSON.stringify(f.value)} rect=${JSON.stringify(f.rect)} readOnly=${f.readOnly}`)
+  console.log(
+    `     - ${f.name} [${f.type}] value=${JSON.stringify(f.value)} rect=${JSON.stringify(f.rect)} readOnly=${f.readOnly}`,
+  )
 }
 
 // 2. pdf_worktree create-equivalent
 step('2. pdf_worktree create → 隔离草稿')
 const draft = await createWorktree(WORKSPACE, FILE, '编辑合同-H T2026')
-console.log('   worktreeId:', draft.worktreeId, '| lifecycle:', draft.lifecycle, '| pageCount:', draft.pageCount)
+console.log(
+  '   worktreeId:',
+  draft.worktreeId,
+  '| lifecycle:',
+  draft.lifecycle,
+  '| pageCount:',
+  draft.pageCount,
+)
 
 // 3. pdf_edit-equivalent
 step('3. pdf_edit → 表单填写 + 红色审核批注')
@@ -54,19 +62,70 @@ const existing = new Set(inspected.formFields.map((f) => f.name))
 const edits = []
 
 if (existing.has('contract_no')) {
-  edits.push({ kind: 'form', page: 1, fieldName: 'contract_no', value: 'HT-2026-8899', fontSize: 10 })
+  edits.push({
+    kind: 'form',
+    page: 1,
+    fieldName: 'contract_no',
+    value: 'HT-2026-8899',
+    fontSize: 10,
+  })
 } else {
-  edits.push({ kind: 'form_create', page: 1, fieldName: 'contract_no', x: 470, y: 769, width: 110, height: 22, style: 'underline', defaultValue: 'HT-2026-8899', fontSize: 10 })
+  edits.push({
+    kind: 'form_create',
+    page: 1,
+    fieldName: 'contract_no',
+    x: 470,
+    y: 769,
+    width: 110,
+    height: 22,
+    style: 'underline',
+    defaultValue: 'HT-2026-8899',
+    fontSize: 10,
+  })
 }
 if (existing.has('signer')) {
-  edits.push({ kind: 'form', page: 1, fieldName: 'signer', value: '李四', fontSize: 12 })
+  edits.push({
+    kind: 'form',
+    page: 1,
+    fieldName: 'signer',
+    value: '李四',
+    fontSize: 12,
+  })
 } else {
-  edits.push({ kind: 'form_create', page: 1, fieldName: 'signer', x: 130, y: 311, width: 180, height: 22, style: 'underline', defaultValue: '李四', fontSize: 12 })
+  edits.push({
+    kind: 'form_create',
+    page: 1,
+    fieldName: 'signer',
+    x: 130,
+    y: 311,
+    width: 180,
+    height: 22,
+    style: 'underline',
+    defaultValue: '李四',
+    fontSize: 12,
+  })
 }
 if (existing.has('sign_date')) {
-  edits.push({ kind: 'form', page: 1, fieldName: 'sign_date', value: '2026-08-28', fontSize: 12 })
+  edits.push({
+    kind: 'form',
+    page: 1,
+    fieldName: 'sign_date',
+    value: '2026-08-28',
+    fontSize: 12,
+  })
 } else {
-  edits.push({ kind: 'form_create', page: 1, fieldName: 'sign_date', x: 370, y: 311, width: 150, height: 22, style: 'underline', defaultValue: '2026-08-28', fontSize: 12 })
+  edits.push({
+    kind: 'form_create',
+    page: 1,
+    fieldName: 'sign_date',
+    x: 370,
+    y: 311,
+    width: 150,
+    height: 22,
+    style: 'underline',
+    defaultValue: '2026-08-28',
+    fontSize: 12,
+  })
 }
 
 // Red review annotation near the bottom (avoid overlapping body clauses).
@@ -96,7 +155,12 @@ for (const f of after.formFields) {
 
 // 5. ready
 step('5. pdf_worktree ready')
-const ready = await applyReviewAction(WORKSPACE, FILE, draft.worktreeId, 'ready')
+const ready = await applyReviewAction(
+  WORKSPACE,
+  FILE,
+  draft.worktreeId,
+  'ready',
+)
 console.log('   lifecycle:', ready.lifecycle)
 
 // 6. Render before/after for the review card
@@ -109,8 +173,12 @@ console.log('   rendered task-before.png / task-after.png')
 console.log('   draftPath:', draftPath)
 
 async function renderPng(data, outPath) {
-  const { createCanvas } = await import('/tmp/pdfdemo-render/node_modules/@napi-rs/canvas/index.js')
-  const canvasM = await import('/tmp/pdfdemo-render/node_modules/@napi-rs/canvas/index.js')
+  const { createCanvas } = await import(
+    '/tmp/pdfdemo-render/node_modules/@napi-rs/canvas/index.js'
+  )
+  const canvasM = await import(
+    '/tmp/pdfdemo-render/node_modules/@napi-rs/canvas/index.js'
+  )
   globalThis.DOMMatrix = canvasM.DOMMatrix
   globalThis.DOMPoint = canvasM.DOMPoint
   globalThis.DOMRect = canvasM.DOMRect

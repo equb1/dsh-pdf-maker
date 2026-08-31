@@ -42,6 +42,16 @@ export function createPdfRouter(service: PdfService, sessions: SessionStore) {
         )
         return
       }
+      if (request.method === 'GET' && url.pathname === '/pdf-api/content') {
+        await contentRoute(
+          response,
+          sessions,
+          url.searchParams.get('file'),
+          url.searchParams.get('sessionId'),
+          url.searchParams.get('worktreeId'),
+        )
+        return
+      }
       if (
         request.method === 'POST' &&
         url.pathname === '/pdf-api/worktree-action'
@@ -104,6 +114,36 @@ async function stateRoute(
 ) {
   const scope = await resolveAuthorizedPdf(file, sessionId, sessions)
   return service.fileState({ workspace: scope.workspace, file: scope.path })
+}
+
+async function contentRoute(
+  response: ServerResponse,
+  sessions: SessionStore,
+  file: unknown,
+  sessionId: unknown,
+  worktreeIdValue: unknown,
+) {
+  const scope = await resolveAuthorizedPdf(file, sessionId, sessions)
+  let targetPath: string = scope.path
+  if (typeof worktreeIdValue === 'string' && worktreeIdValue.length > 0) {
+    const { requireDraft } = await import('../provider/worktree-operations.ts')
+    targetPath = await requireDraft(
+      scope.workspace,
+      scope.path,
+      worktreeId(worktreeIdValue),
+    )
+  }
+  const { readFile } = await import('node:fs/promises')
+  const { basename } = await import('node:path')
+  const bytes = await readFile(targetPath)
+  response.writeHead(200, {
+    'content-type': 'application/pdf',
+    'content-length': bytes.length,
+    'content-disposition': `inline; filename="${basename(targetPath)}"`,
+    'cache-control': 'no-cache, no-store, must-revalidate',
+    'accept-ranges': 'bytes',
+  })
+  response.end(bytes)
 }
 
 async function worktreeActionRoute(

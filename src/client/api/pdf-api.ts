@@ -50,6 +50,32 @@ export function getFileState(
   )
 }
 
+/** Get the direct streaming URL for viewing a trunk or draft worktree PDF. */
+export function getPdfContentUrl(
+  file: string,
+  sessionId: SessionId,
+  worktreeId?: string,
+): string {
+  const base = `${window.location.origin}/pdf-api/content?file=${encodeURIComponent(file)}&sessionId=${encodeURIComponent(sessionId)}`
+  return worktreeId !== undefined && worktreeId.length > 0
+    ? `${base}&worktreeId=${encodeURIComponent(worktreeId)}&_t=${Date.now()}`
+    : `${base}&_t=${Date.now()}`
+}
+
+/** Execute a review action on a draft worktree (ready, reopen, merge, discard). */
+export function performWorktreeAction(
+  file: string,
+  sessionId: SessionId,
+  worktreeId: string,
+  action: 'ready' | 'reopen' | 'merge' | 'discard',
+): Promise<unknown> {
+  return request('/pdf-api/worktree-action', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ file, sessionId, worktreeId, action }),
+  })
+}
+
 /** A projected file was removed (or never successfully created) in the session workspace. */
 export function isMissingPdfFile(error: unknown): boolean {
   return error instanceof PdfApiError && error.code === 'INVALID_FILE_PATH'

@@ -94,10 +94,34 @@ export function selectPdfTurn(owner: TurnTailOwnerProps): PdfTurnMatch | null {
   return { turn: owner.turn.turn, files: data.files }
 }
 
-function isPdfTool(name: string): name is PdfOperationName {
-  return ['new', 'status', 'worktree', 'edit', 'export', 'screenshot'].includes(
-    name.replace(/^pdf_/, ''),
+function isPdfTool(name: string): boolean {
+  return (
+    name.startsWith('pdf_') &&
+    ['new', 'status', 'worktree', 'edit', 'export', 'screenshot'].includes(
+      name.replace(/^pdf_/, ''),
+    )
   )
+}
+
+function parseRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        !Array.isArray(parsed)
+      ) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      return null
+    }
+  }
+  return null
 }
 
 function addCall(
@@ -105,15 +129,14 @@ function addCall(
   data: SessionEvent<'tool/call'>['data'],
 ): PdfTurnState {
   if (!isPdfTool(data.name)) return state
-  const record =
-    typeof data.arguments === 'object' && data.arguments !== null
-      ? (data.arguments as Record<string, unknown>)
-      : {}
+  const record = parseRecord(data.arguments) ?? {}
+  const file = typeof record.file === 'string' ? record.file : ''
+  if (!file) return state
   const operation: PdfTurnOperation = {
     callId: data.callId,
-    name: data.name,
+    name: data.name.replace(/^pdf_/, '') as PdfOperationName,
     action: typeof record.action === 'string' ? record.action : null,
-    file: typeof record.file === 'string' ? record.file : '',
+    file,
     worktreeId:
       typeof record.worktreeId === 'string' ? record.worktreeId : null,
     phase: 'pending',
@@ -126,6 +149,7 @@ function applyResult(
   data: SessionEvent<'tool/result'>['data'],
 ): PdfTurnState {
   const first = data.message.content[0]
+  if (first === undefined) return state
   const callId = first.toolCallId
   const files = state.files.map((file) => ({
     ...file,

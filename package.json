@@ -54,7 +54,8 @@
     "lint:fix": "biome check --write src scripts",
     "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.client.json --noEmit",
     "test:host": "node test/host-smoke.mjs",
-    "test": "pnpm run typecheck && pnpm run build && pnpm run test:host"
+    "test:client": "node test/client-turn-smoke.mjs",
+    "test": "pnpm run typecheck && pnpm run build && pnpm run test:host && pnpm run test:client"
   },
   "dependencies": {
     "fontkit": "^1.9.0",
