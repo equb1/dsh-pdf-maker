@@ -91,10 +91,75 @@ try {
   const trunk = await PDFDocument.load(await readFile(file))
   assert(trunk.getPageCount() === 1, 'merged trunk is a valid PDF')
 
+  await runStructuralEditingScenario()
   await runCjkScenario()
   console.log('host smoke ok')
 } finally {
   await rm(root, { recursive: true, force: true })
+}
+
+/** Test multi-page reorder, delete, rotate, watermark, page numbers, and flattening. */
+async function runStructuralEditingScenario() {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pdf-maker-struct-'))
+  try {
+    const doc = await PDFDocument.create()
+    // Add 4 distinct pages
+    for (let i = 1; i <= 4; i++) {
+      const page = doc.addPage([500, 700])
+      page.drawText(`Page ${i}`, { x: 50, y: 650, size: 20 })
+    }
+    const pdfPath = join(dir, 'multi.pdf')
+    await writeFile(pdfPath, await doc.save())
+
+    const { applyEdits, inspectDocument } = await import(
+      '../src/host/provider/pdf-operations.ts'
+    )
+
+    // 1. Reorder [4, 1, 3, 2]
+    await applyEdits(pdfPath, [{ kind: 'reorder_pages', order: [4, 1, 3, 2] }])
+    let inspected = await inspectDocument(await readFile(pdfPath))
+    assert(inspected.pageCount === 4, 'reordered page count')
+
+    // 2. Delete page 2
+    await applyEdits(pdfPath, [{ kind: 'delete_pages', pages: [2] }])
+    inspected = await inspectDocument(await readFile(pdfPath))
+    assert(inspected.pageCount === 3, 'deleted page count is 3')
+
+    // 3. Rotate page 1 by 90 degrees
+    await applyEdits(pdfPath, [
+      { kind: 'rotate_pages', pages: [1], degrees: 90 },
+    ])
+    const rotatedDoc = await PDFDocument.load(await readFile(pdfPath))
+    assert(
+      rotatedDoc.getPage(0).getRotation().angle === 90,
+      'page 1 rotation is 90',
+    )
+
+    // 4. Add Watermark and Page Numbering
+    await applyEdits(pdfPath, [
+      {
+        kind: 'watermark',
+        text: '机密 DRAFT',
+        opacity: 0.2,
+        rotation: 45,
+        fontSize: 30,
+      },
+      {
+        kind: 'page_number',
+        format: 'Page {page} of {total}',
+        position: 'bottom_center',
+      },
+      { kind: 'metadata', title: '测试文档', author: 'DeepSeek' },
+      { kind: 'flatten' },
+    ])
+
+    const finalDoc = await PDFDocument.load(await readFile(pdfPath))
+    assert(finalDoc.getTitle() === '测试文档', 'metadata title matches')
+    assert(finalDoc.getAuthor() === 'DeepSeek', 'metadata author matches')
+    assert(finalDoc.getPageCount() === 3, 'final page count is 3')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 }
 
 /** Chinese + formula writing must succeed via system CJK font embedding. */

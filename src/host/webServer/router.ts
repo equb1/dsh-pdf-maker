@@ -25,6 +25,13 @@ export function createPdfRouter(service: PdfService, sessions: SessionStore) {
   ): Promise<void> => {
     try {
       const url = new URL(request.url ?? '/', 'http://localhost')
+      if (
+        request.method === 'GET' &&
+        url.pathname === '/pdf-api/pdf.worker.mjs'
+      ) {
+        await workerRoute(response)
+        return
+      }
       if (request.method === 'GET' && url.pathname === '/pdf-api/status') {
         sendJson(response, 200, await statusRoute(service))
         return
@@ -67,6 +74,14 @@ export function createPdfRouter(service: PdfService, sessions: SessionStore) {
         )
         return
       }
+      if (request.method === 'POST' && url.pathname === '/pdf-api/edit') {
+        sendJson(
+          response,
+          200,
+          await editRoute(service, sessions, await readJsonBody(request)),
+        )
+        return
+      }
       response.writeHead(404)
       response.end()
     } catch (error) {
@@ -104,6 +119,22 @@ async function statusRoute(service: PdfService) {
     gateway: await service.gatewayStatus(),
     engines: { edit: true, render: false },
   }
+}
+
+/** Serve the bundled pdfjs worker (ESM) from lib/pdf.worker.mjs. */
+async function workerRoute(response: ServerResponse): Promise<void> {
+  const { readFile } = await import('node:fs/promises')
+  const { fileURLToPath } = await import('node:url')
+  const workerPath = fileURLToPath(
+    new URL('./pdf.worker.mjs', import.meta.url),
+  )
+  const bytes = await readFile(workerPath)
+  response.writeHead(200, {
+    'content-type': 'text/javascript; charset=utf-8',
+    'content-length': bytes.length,
+    'cache-control': 'no-cache, no-store',
+  })
+  response.end(bytes)
 }
 
 async function stateRoute(
@@ -180,6 +211,35 @@ async function worktreeActionRoute(
     },
     undefined,
   )
+}
+
+async function editRoute(
+  service: PdfService,
+  sessions: SessionStore,
+  body: unknown,
+) {
+  if (typeof body !== 'object' || body === null) {
+    throw pdfError('request body must be a JSON object', 'INVALID_REQUEST')
+  }
+  const record = body as Record<string, unknown>
+  const scope = await resolveAuthorizedPdf(
+    record.file,
+    record.sessionId,
+    sessions,
+  )
+  const worktreeIdValue = record.worktreeId
+  if (typeof worktreeIdValue !== 'string' || worktreeIdValue.length === 0) {
+    throw pdfError('worktreeId is required', 'INVALID_REQUEST')
+  }
+  if (!Array.isArray(record.edits)) {
+    throw pdfError('edits array is required', 'INVALID_REQUEST')
+  }
+  return service.edit({
+    workspace: scope.workspace,
+    file: scope.path,
+    worktreeId: worktreeId(worktreeIdValue),
+    edits: record.edits as import('../service/types.ts').PdfEditCommand[],
+  })
 }
 
 async function resolveAuthorizedPdf(

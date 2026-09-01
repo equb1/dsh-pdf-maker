@@ -91,6 +91,57 @@ export type PdfEditCommand =
       readonly thickness?: number
       readonly color?: string
     }
+  | {
+      readonly kind: 'reorder_pages'
+      readonly order: readonly number[]
+    }
+  | {
+      readonly kind: 'delete_pages'
+      readonly pages: readonly number[]
+    }
+  | {
+      readonly kind: 'rotate_pages'
+      readonly pages?: readonly number[]
+      readonly degrees: 90 | 180 | 270 | -90 | -180 | -270
+    }
+  | {
+      readonly kind: 'insert_pages'
+      readonly sourceFile: string
+      readonly sourcePages?: readonly number[]
+      readonly atPage?: number
+    }
+  | {
+      readonly kind: 'watermark'
+      readonly text: string
+      readonly opacity?: number
+      readonly rotation?: number
+      readonly fontSize?: number
+      readonly color?: string
+      readonly pages?: readonly number[]
+    }
+  | {
+      readonly kind: 'page_number'
+      readonly format?: string
+      readonly position?:
+        | 'bottom_center'
+        | 'bottom_right'
+        | 'top_center'
+        | 'top_right'
+      readonly startFrom?: number
+      readonly fontSize?: number
+      readonly color?: string
+      readonly pages?: readonly number[]
+    }
+  | {
+      readonly kind: 'flatten'
+    }
+  | {
+      readonly kind: 'metadata'
+      readonly title?: string
+      readonly author?: string
+      readonly subject?: string
+      readonly keywords?: readonly string[]
+    }
 
 /** Model-facing edit request. */
 export interface PdfEditRequest extends ScopedFileRequest {

@@ -33,7 +33,9 @@ export function apply(ctx: ClientContext): void {
         ctx.slots.register(
           {
             name: 'conversation.chat.turnTail',
-            priority: -10,
+            // Higher priority (lower number) than dsh-univer-office's -10 so a
+            // PDF turn claims the turn-tail slot before the univer plugin does.
+            priority: -20,
             locale: PDF_LOCALE_NAMESPACE,
             select: selectPdfTurn,
           },

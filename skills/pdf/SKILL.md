@@ -1,9 +1,9 @@
 ---
 name: pdf
-description: Create, inspect, edit, review, and deliver PDF files through DSH tools and isolated worktrees. Use proactively for any PDF task: form filling, text annotations, interactive form creation, splitting, merging, exporting, or reviewing rendered pages.
+description: Create, inspect, edit, review, organize, watermark, split, merge, and deliver PDF files through DSH tools and isolated worktrees. Use proactively for any PDF task: form filling, text annotations, interactive form creation, page reordering/rotating/deletion, watermark, page numbering, splitting, merging, exporting, or reviewing rendered pages.
 ---
 
-# PDF Editing Workflow
+# PDF Editing & Organizing Workflow
 
 PDF files are edited through **isolated draft worktrees**. Never edit a trunk file
 directly; always inspect the layout first, create a draft, apply structured edits,
@@ -21,8 +21,14 @@ and let the user merge or discard through the in-session review card.
      use `{ kind: 'form', page, fieldName, value, fontSize? }`.
    - **Creating new interactive form fields:** If adding fillable inputs to a contract
      or form, use `{ kind: 'form_create', page, fieldName, x, y, width, height, style: 'underline' | 'light' | 'borderless', defaultValue?, fontSize? }`.
-     Prefer `style: 'underline'` (draws an elegant contract underline) or `style: 'light'`
-     (subtle soft border) over ugly heavy black boxes.
+   - **Page Reordering:** Use `{ kind: 'reorder_pages', order: [3, 1, 2, 4] }` to resequence pages.
+   - **Page Deletion:** Use `{ kind: 'delete_pages', pages: [2, 5] }` to remove specified pages.
+   - **Page Rotation:** Use `{ kind: 'rotate_pages', pages?: [1], degrees: 90 | 180 | 270 | -90 }` to rotate pages.
+   - **Page Insertion:** Use `{ kind: 'insert_pages', sourceFile: 'appendix.pdf', sourcePages?: [1, 2], atPage?: 3 }`.
+   - **Watermarking:** Use `{ kind: 'watermark', text: '内部机密', opacity: 0.18, rotation: 45, fontSize: 36, color: '#64748B' }`.
+   - **Page Numbering:** Use `{ kind: 'page_number', format: '第 {page} 页 / 共 {total} 页', position: 'bottom_center' }`.
+   - **Flatten Forms:** Use `{ kind: 'flatten' }` to bake fillable fields into non-editable static content.
+   - **Metadata:** Use `{ kind: 'metadata', title: '合同终审', author: '法务部' }`.
    - **Direct text / signing / annotations:** Use `{ kind: 'text', page, x, y, text, size?, color? }`.
    - **Decorative or structure lines:** Use `{ kind: 'line', page, x1, y1, x2, y2, thickness?, color? }`.
 4. **Master the PDF Coordinate System:**
@@ -31,25 +37,31 @@ and let the user merge or discard through the in-session review card.
    - Top margin starts around `y = 780..800`; bottom margin ends around `y = 50..80`.
    - For `text`, `y` is the **text baseline** (the line text sits on).
    - For `form_create`, `(x, y)` is the **bottom-left corner** of the field box.
-   - When placing a form field next to a label `签署人：` at `(x: 70, y: 350)` with font size 12,
-     place the form field at `(x: 130, y: 346, width: 140, height: 20)` so text baselines align.
 5. **Merge and discard are user decisions.** Call `pdf_worktree merge` or
    `pdf_worktree discard` only after the user explicitly approves in chat.
+6. **Live Turn-Tail Preview Card:** The DSH Client automatically renders an interactive,
+   high-definition PDF preview viewer card with full zoom, scroll, and Merge/Discard buttons
+   at the tail of every turn. Do NOT call `pdf_screenshot` or attempt to generate PNG thumbnails,
+   as the live card already provides superior real-time interactive preview.
 
-## Standard Sequence
+## Standard Sequences
 
-1. `pdf_status` → get page dimensions and list of `formFields`.
-2. `pdf_worktree create` → create isolated draft copy.
-3. `pdf_edit` → apply structured `form`, `form_create`, `text`, or `line` commands.
-4. `pdf_status` → verify draft state is `ready` and review inspected fields.
-5. `pdf_export` → export a copy when the user requests a standalone output file.
-6. Await user confirmation → `pdf_worktree merge` (publish to trunk) or `discard`.
+### 1. Form Filling & Annotation
+`pdf_status` $\rightarrow$ `pdf_worktree create` $\rightarrow$ `pdf_edit` (form + text) $\rightarrow$ `pdf_worktree ready` $\rightarrow$ Live Preview Card renders in chat $\rightarrow$ User Confirm.
+
+### 2. Page Organizing & Reordering
+`pdf_status` $\rightarrow$ `pdf_worktree create` $\rightarrow$ `pdf_edit` (`reorder_pages` / `delete_pages` / `rotate_pages`) $\rightarrow$ `pdf_worktree ready` $\rightarrow$ Live Preview Card renders in chat.
+
+### 3. Multi-Step Iterative Editing
+If the user requests further modifications after seeing the preview, continue calling `pdf_edit` on the **same `worktreeId`**. The live preview card will automatically refresh with the latest draft!
+
+### 4. Official Document Stamping & Watermarking
+`pdf_worktree create` $\rightarrow$ `pdf_edit` (`watermark` + `page_number` + `flatten`) $\rightarrow$ `pdf_worktree ready`.
 
 ## Form Field Style Guide
 
 - **`underline` (Recommended for Contracts & Legal Forms):**
-  Transparent fill and border with a subtle 0.75pt bottom underline. Text typed
-  into the field sits naturally on the line without abrupt rectangular boxes.
+  Transparent fill and border with a subtle 0.75pt bottom underline.
 - **`light` (Recommended for Application Forms & Surveys):**
   Subtle light-blue/grey border (`#CCD4E0`) with very light background (`#F8FAFC`).
 - **`borderless`:**

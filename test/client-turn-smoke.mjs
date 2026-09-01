@@ -210,13 +210,22 @@ React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.
       typeof initial === 'function' ? initial() : initial,
       () => {},
     ],
+    useRef: (initial) => ({ current: initial }),
     useCallback: (fn) => fn,
     useEffect: () => {},
   }
 
 const renderedItem = fileItemEl.type(fileItemEl.props)
-const [headerEl, viewerEl, opsEl, errorEl, actionsEl] =
-  renderedItem.props.children
+const children = renderedItem.props.children.filter((c) => c !== null)
+const headerEl = children.find((c) => c.props?.className === 'pdf-header')
+const viewerEl = children.find(
+  (c) => c.props?.className === 'pdf-viewer-container',
+)
+const actionsEl = children.find((c) => c.props?.className === 'pdf-actions')
+
+assert.ok(headerEl !== undefined, 'headerEl must exist')
+assert.ok(viewerEl !== undefined, 'viewerEl must exist')
+assert.ok(actionsEl !== undefined, 'actionsEl must exist')
 
 assert.strictEqual(headerEl.props.className, 'pdf-header')
 assert.strictEqual(viewerEl.props.className, 'pdf-viewer-container')

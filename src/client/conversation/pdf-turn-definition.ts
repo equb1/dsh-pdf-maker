@@ -89,9 +89,32 @@ export const pdfTurnDefinition = {
 
 /** Select a Turn-tail surface only when that Turn contains file-scoped PDF operations. */
 export function selectPdfTurn(owner: TurnTailOwnerProps): PdfTurnMatch | null {
-  const data = owner.turn.data.get('pdfTurn')
-  if (data === undefined || data.files.length === 0) return null
-  return { turn: owner.turn.turn, files: data.files }
+  const turn = (
+    owner as unknown as {
+      turn?: {
+        turn?: number
+        data?: Map<string, unknown> | Record<string, unknown>
+      }
+    }
+  )?.turn
+  if (!turn?.data) return null
+  const data =
+    turn.data instanceof Map
+      ? (turn.data.get('pdfTurn') as PdfTurnData | undefined)
+      : typeof (turn.data as Record<string, unknown>).get === 'function'
+        ? ((turn.data as { get: (k: string) => unknown }).get('pdfTurn') as
+            | PdfTurnData
+            | undefined)
+        : ((turn.data as Record<string, unknown>).pdfTurn as
+            | PdfTurnData
+            | undefined)
+  if (
+    data === undefined ||
+    !Array.isArray(data.files) ||
+    data.files.length === 0
+  )
+    return null
+  return { turn: turn.turn ?? 1, files: data.files }
 }
 
 function isPdfTool(name: string): boolean {
@@ -124,6 +147,26 @@ function parseRecord(value: unknown): Record<string, unknown> | null {
   return null
 }
 
+function structuredResult(
+  data: SessionEvent<'tool/result'>['data'],
+): Record<string, unknown> | null {
+  const content = (
+    data.message?.content?.[0] as {
+      content?: Array<{ type?: string; text?: string }>
+    }
+  )?.content
+  const text =
+    content
+      ?.flatMap((block) =>
+        block.type === 'text' && typeof block.text === 'string'
+          ? [block.text]
+          : [],
+      )
+      .join('\n') ?? ''
+  const firstBrace = text.indexOf('{')
+  return firstBrace === -1 ? null : parseRecord(text.slice(firstBrace))
+}
+
 function addCall(
   state: PdfTurnState,
   data: SessionEvent<'tool/call'>['data'],
@@ -141,48 +184,91 @@ function addCall(
       typeof record.worktreeId === 'string' ? record.worktreeId : null,
     phase: 'pending',
   }
-  return appendOperation(state, operation)
+  return { ...state, files: appendOperation(state.files, operation) }
 }
 
 function applyResult(
   state: PdfTurnState,
   data: SessionEvent<'tool/result'>['data'],
 ): PdfTurnState {
-  const first = data.message.content[0]
+  const first = data.message?.content?.[0]
   if (first === undefined) return state
   const callId = first.toolCallId
-  const files = state.files.map((file) => ({
-    ...file,
-    operations: file.operations.map((operation) =>
-      operation.callId === callId
-        ? {
-            ...operation,
-            phase:
-              data.error === undefined && first.isError !== true
-                ? ('succeeded' as const)
-                : ('failed' as const),
-          }
-        : operation,
-    ),
-  }))
-  return { ...state, files }
+  const structured = structuredResult(data)
+
+  let matched: PdfTurnOperation | undefined
+  for (const file of state.files) {
+    const op = file.operations.find((entry) => entry.callId === callId)
+    if (op !== undefined) matched = op
+  }
+  if (matched === undefined && structured === null) return state
+
+  const result =
+    structured === null ||
+    typeof structured.result !== 'object' ||
+    structured.result === null
+      ? null
+      : (structured.result as Record<string, unknown>)
+  const name =
+    matched?.name ??
+    (typeof structured?.operation === 'string'
+      ? (structured.operation.replace(/^pdf_/, '') as PdfOperationName)
+      : undefined)
+  const file =
+    typeof structured?.file === 'string' ? structured.file : matched?.file
+  if (name === undefined || file === undefined) return state
+
+  const operation: PdfTurnOperation = {
+    callId,
+    name,
+    action:
+      typeof result?.action === 'string'
+        ? result.action
+        : (matched?.action ?? null),
+    file,
+    worktreeId:
+      typeof result?.worktreeId === 'string'
+        ? result.worktreeId
+        : (matched?.worktreeId ?? null),
+    phase:
+      data.error === undefined && first.isError !== true
+        ? 'succeeded'
+        : 'failed',
+  }
+
+  const withoutCall = state.files.flatMap((entry) => {
+    const operations = entry.operations.filter(
+      (candidate) => candidate.callId !== callId,
+    )
+    return operations.length === 0 ? [] : [{ ...entry, operations }]
+  })
+
+  return { ...state, files: appendOperation(withoutCall, operation) }
+}
+
+function matchesFile(a: string, b: string): boolean {
+  if (a === b) return true
+  if (a.endsWith(`/${b}`) || b.endsWith(`/${a}`)) return true
+  return false
 }
 
 function appendOperation(
-  state: PdfTurnState,
+  files: readonly PdfTurnFile[],
   operation: PdfTurnOperation,
-): PdfTurnState {
-  const files = [...state.files]
-  const existing = files.findIndex((file) => file.file === operation.file)
+): PdfTurnFile[] {
+  const next = [...files]
+  const existing = next.findIndex((file) =>
+    matchesFile(file.file, operation.file),
+  )
   if (existing === -1) {
-    files.push({ file: operation.file, operations: [operation] })
+    next.push({ file: operation.file, operations: [operation] })
   } else {
-    const target = files[existing]
+    const target = next[existing]
     if (target !== undefined)
-      files[existing] = {
+      next[existing] = {
         file: target.file,
         operations: [...target.operations, operation],
       }
   }
-  return { ...state, files }
+  return next
 }
