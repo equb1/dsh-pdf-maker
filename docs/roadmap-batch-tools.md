@@ -37,7 +37,47 @@
 
 ---
 
-## 3. 架构分层(必须遵循)
+## 3. 用户体验原则(易用 / 准确 / 友好 — 每一项功能都必须满足)
+
+> 这一节是硬性要求,不是软建议。任何功能如果没有过这三关,不算完成。
+
+### 3.1 便捷(Ease of use)
+
+- **一键应用**:批处理工具必须是"点一下按钮就完成",绝不让用户手动拖拽或分步操作。
+- **最少点击**:从"看到功能"到"应用完成"不超过 2 次点击。
+- **上下文到位**:工具面板就在预览卡片/缩略图旁边,不需要跳到别处。
+- **可撤销**:应用后可 discard 草稿回退,不破坏原文件(worktree 已天然保证)。
+- **批量友好**:能选"全部页"或"指定范围",不用一页页点。
+
+### 3.2 准确(Accuracy)
+
+- **结果可预览**:应用前展示"转换后缩略图/顺序"预览(如交替排序后的页序、切分后的页),
+  让用户确认后再写 worktree。
+- **算法正确**:每个工具必须过明确的测试样例(见 Step 3 的 N=4/N=6 样例),
+  并用 `pdf_screenshot` 或 pdfjs 渲染验证切分/合并结果真实正确。
+- **错误可见**:失败时给出可读的 `Error [CODE]` 信息,不静默、不闪退。
+- **顺序同步**:批处理改变页序后,缩略图与可视化区保持同步(已有 `onOrderChange` 机制)。
+
+### 3.3 友好(Friendliness)
+
+- **文案清晰**:按钮用中文 + 简短说明,如"交替排序(1,3,2,4→1,2,3,4)"。
+- **状态反馈**:应用中显示 loading/进度(如"正在切分…"),完成后有成功提示。
+- **防误触**:破坏性操作(如拆分/删除)应用前二次确认。
+- **空态处理**:没有选中页 / 没有源文件时给出提示,而不是报错或没反应。
+- **加载态**:OCR 等耗时操作显示进度条或"正在识别…",避免无反馈假死。
+
+### 3.4 验收自查清单(每个功能都要过)
+
+- [ ] 一键触发,≤2 次点击完成
+- [ ] 应用前有可确认的预览/说明
+- [ ] 结果用测试样例验证过正确
+- [ ] 失败有可读错误,不静默
+- [ ] loading / 完成 / 空态 / 防误触 都有处理
+
+---
+
+## 4. 架构分层(必须遵循)
+
 
 ```
 webServer/tools → service ← provider → (adapters)
@@ -54,7 +94,7 @@ webServer/tools → service ← provider → (adapters)
 
 ---
 
-## 4. 分步实施顺序(给未来的我)
+## 5. 分步实施顺序(给未来的我)
 
 > 每一步都要:改完 → `pnpm run typecheck` → 走通 → 再下一步。构建用 **Node 22+**
 > (`PATH` 里的 `/usr/local/bin/node` 是 v20 不可用,必须用
@@ -123,7 +163,7 @@ webServer/tools → service ← provider → (adapters)
 
 ---
 
-## 5. 关键风险 / 决策点
+## 6. 关键风险 / 决策点
 
 - **交替排序算法语义**:必须先用测试样例(N=4, N=6)验证 order 方向,再做 UI。
 - **split_pages 的 MediaBox 坐标**:pdf-lib 坐标原点在左下,y 向上;切分时注意
@@ -135,7 +175,7 @@ webServer/tools → service ← provider → (adapters)
 
 ---
 
-## 6. 完成定义(DoD)
+## 7. 完成定义(DoD)
 
 - [ ] 5 个功能都能通过 `pdf_edit` / 新工具在草稿上应用,不崩
 - [ ] 每个功能在预览卡片/工具面板可一键触发,缩略图顺序同步
@@ -146,7 +186,47 @@ webServer/tools → service ← provider → (adapters)
 
 ---
 
-## 7. 参考
+## 8. 环境与已验证事实(自包含,勿依赖历史会话)
+
+以下事实在开发本插件时已确认,直接复用,不必重新排查:
+
+### 构建环境
+- **必须用 Node 26**:`$HOME/.nvm/versions/node/v26.1.0/bin/node`。
+  `PATH` 里的 `/usr/local/bin/node` 是 v20,**pnpm 会因 `node:sqlite` 缺失而崩**。
+  构建命令:`"$HOME/.nvm/versions/node/v26.1.0/bin/node" scripts/build.mjs`。
+- typecheck:`"$NODE26" node_modules/typescript/bin/tsc --project tsconfig.json --noEmit`
+  + `tsconfig.client.json`。
+
+### 运行中的 DSH web
+- 地址:`http://127.0.0.1:3080`。
+- 插件 client bundle 由 webServer 动态从 `lib/client.js` 读,改完 build 后
+  **浏览器硬刷新(Cmd+Shift+R)** 生效,无需重启 webServer。
+- 校验:`curl http://127.0.0.1:3080/plugins/dsh-pdf-maker/client.js` 应与本地 `lib/client.js` 一致。
+- worker 路由:`/pdf-api/pdf.worker.mjs`(已存在,200)。
+
+### pdfjs 集成要点(已踩过的坑,勿重踩)
+- pdfjs-dist v6 在模块顶层访问 `Iterator.prototype.join`,旧浏览器无 `Iterator` 会崩。
+  **已在 build 时注入 Iterator shim**,勿移除。
+- `PDFViewer` 构造要求:`container` 和内部 `viewer` 都必须是 `<div>`,且 container
+  `position: absolute`。否则抛 `Invalid container and/or viewer option`。
+  见 `src/client/components/pdf-viewer-panel.tsx`。
+- 页码翻页在滚动模式下用 `currentPageLabel`,`currentPageNumber` 不生效。
+
+### 预览双形态(已实现,勿破坏)
+- `src/client/components/pdf-preview.tsx`:
+  - **缩略图模式**:页面缩略图网格 + 拖拽排序,松手写 worktree。
+  - **完整模式**:pdfjs `PDFViewer` + 翻页/缩放/适配。
+  - 顶部「缩略图 / 完整预览」切换;按操作类型自动推荐 + 手动覆盖。
+- 缩略图与可视化区通过 `externalOrder` / `onOrderChange` 双向同步。
+- 「页面管理与重排」已删除,排序由缩略图完成。
+
+### 会话场景
+- 测试文件:`sample-report.pdf`(4 页 A4,工作区根目录)。
+- 已建大量 worktree,测试时新建一个即可(名称随意,如"测试")。
+
+---
+
+## 9. 参考
 
 - AGENTS.md:引擎选型、架构约束、工具集、许可证
 - `docs/architecture.md`:架构
