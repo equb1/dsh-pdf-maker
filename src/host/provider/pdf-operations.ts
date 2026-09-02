@@ -127,6 +127,103 @@ export async function applyEdits(
       continue
     }
 
+    if (edit.kind === 'split_pages') {
+      // Split each selected page into two halves (A3 -> 2x A4). For each page,
+      // copy it twice and clip each copy's MediaBox to the left/right
+      // (vertical) or top/bottom (horizontal) half.
+      const pageCount = document.getPageCount()
+      const splitIndices = [...new Set(edit.pages)].sort((a, b) => a - b)
+      for (const p of splitIndices) {
+        if (p < 1 || p > pageCount) {
+          throw pdfError(
+            `page ${p} out of range (1..${pageCount})`,
+            'INVALID_REQUEST',
+          )
+        }
+      }
+      const vertical = edit.direction !== 'horizontal'
+      const newDoc = await PDFDocument.create()
+      for (let i = 0; i < document.getPageCount(); i += 1) {
+        const isSplit = splitIndices.includes(i + 1)
+        if (!isSplit) {
+          const [copied] = await newDoc.copyPages(document, [i])
+          if (copied) newDoc.addPage(copied)
+          continue
+        }
+        const box = document.getPage(i).getMediaBox()
+        const left = box.x
+        const bottom = box.y
+        const width = box.width
+        const height = box.height
+        const halves: Array<{ x: number; y: number; w: number; h: number }> =
+          vertical
+            ? [
+                { x: left, y: bottom, w: width / 2, h: height },
+                { x: left + width / 2, y: bottom, w: width / 2, h: height },
+              ]
+            : [
+                { x: left, y: bottom + height / 2, w: width, h: height / 2 },
+                { x: left, y: bottom, w: width, h: height / 2 },
+              ]
+        for (const half of halves) {
+          const [cp] = await newDoc.copyPages(document, [i])
+          if (cp === undefined) continue
+          cp.setMediaBox(half.x, half.y, half.w, half.h)
+          cp.setCropBox(half.x, half.y, half.w, half.h)
+          newDoc.addPage(cp)
+        }
+      }
+      document = newDoc
+      form = document.getForm()
+      continue
+    }
+
+    if (edit.kind === 'merge_pages') {
+      // Append pages from one or more source PDF files into this document.
+      const copied = []
+      for (const sourceFile of edit.sources) {
+        const srcBytes = await readFile(sourceFile)
+        const srcDoc = await loadDocument(srcBytes)
+        const srcIndices = Array.from(
+          { length: srcDoc.getPageCount() },
+          (_, i) => i,
+        )
+        copied.push(...(await document.copyPages(srcDoc, srcIndices)))
+      }
+      let targetIndex =
+        edit.atPage !== undefined ? edit.atPage : document.getPageCount()
+      if (targetIndex < 0 || targetIndex > document.getPageCount()) {
+        targetIndex = document.getPageCount()
+      }
+      for (const cp of copied) {
+        document.insertPage(targetIndex, cp)
+        targetIndex += 1
+      }
+      continue
+    }
+
+    if (edit.kind === 'extract_pages') {
+      // Keep only the selected pages (1-based), dropping the rest.
+      const pageCount = document.getPageCount()
+      const indices = [...new Set(edit.pages)].map((p) => {
+        if (p < 1 || p > pageCount) {
+          throw pdfError(
+            `page ${p} out of range (1..${pageCount})`,
+            'INVALID_REQUEST',
+          )
+        }
+        return p - 1
+      })
+      const newDoc = await PDFDocument.create()
+      const copied = await newDoc.copyPages(document, indices)
+      for (const cp of copied) {
+        newDoc.addPage(cp)
+      }
+      document = newDoc
+      form = document.getForm()
+      continue
+    }
+
     if (edit.kind === 'watermark') {
       const font = await pickFont(document, edit.text)
       const rotationAngle = edit.rotation ?? 45

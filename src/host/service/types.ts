@@ -142,6 +142,23 @@ export type PdfEditCommand =
       readonly subject?: string
       readonly keywords?: readonly string[]
     }
+  | {
+      /** Split large pages (e.g. A3) into two halves (left/right or top/bottom). */
+      readonly kind: 'split_pages'
+      readonly pages: readonly number[]
+      readonly direction?: 'vertical' | 'horizontal'
+    }
+  | {
+      /** Merge pages from one or more source PDF files into this document. */
+      readonly kind: 'merge_pages'
+      readonly sources: readonly string[]
+      readonly atPage?: number
+    }
+  | {
+      /** Keep only the selected pages, dropping the rest (split/extract). */
+      readonly kind: 'extract_pages'
+      readonly pages: readonly number[]
+    }
 
 /** Model-facing edit request. */
 export interface PdfEditRequest extends ScopedFileRequest {
@@ -178,6 +195,26 @@ export type PdfScreenshotResult = {
   readonly pages: PdfScreenshotPage[]
 }
 
+/** OCR request: recognize text on one or more pages of a PDF. */
+export interface PdfOcrRequest extends ScopedFileRequest {
+  readonly worktreeId?: WorktreeId
+  readonly pages?: readonly number[]
+  readonly lang?: string
+}
+
+/** Per-page OCR result. */
+export type PdfOcrPageResult = {
+  readonly page: number
+  readonly text: string
+  readonly confidence: number
+}
+
+/** Result of an OCR operation. */
+export type PdfOcrResult = {
+  readonly file: string
+  readonly pages: PdfOcrPageResult[]
+}
+
 /** Methods implemented by the PDF service definition. */
 export interface PdfServiceMethods {
   gatewayStatus(): Promise<GatewayStatus>
@@ -201,4 +238,8 @@ export interface PdfServiceMethods {
     request: PdfScreenshotRequest,
     signal?: AbortSignal,
   ): Promise<PdfScreenshotResult>
+  ocr(
+    request: PdfOcrRequest,
+    signal?: AbortSignal,
+  ): Promise<PdfOcrResult>
 }

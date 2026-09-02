@@ -58,9 +58,12 @@
     "test": "pnpm run typecheck && pnpm run build && pnpm run test:host && pnpm run test:client"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.8",
     "fontkit": "^1.9.0",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^6.2.108"
+    "pdfjs-dist": "^6.2.108",
+    "tesseract.js": "^7.0.0",
+    "tesseract.js-core": "^7.0.0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",

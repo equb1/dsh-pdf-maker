@@ -2,6 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '../service/pdf-service.ts'
 import { editTool, exportTool } from './definitions/edit.ts'
+import { ocrTool } from './definitions/ocr.ts'
 import { screenshotTool } from './definitions/screenshot.ts'
 import { newTool, statusTool, worktreeTool } from './definitions/worktree.ts'
 import { withPdfErrorContent } from './presentation.ts'
@@ -23,6 +24,7 @@ export function apply(ctx: Context): void {
   ctx.tools.register(
     withPdfErrorContent(screenshotTool(ctx, operationTimeoutMs)),
   )
+  ctx.tools.register(withPdfErrorContent(ocrTool(ctx, operationTimeoutMs)))
 
   ctx.on('tools/pre-execute', (exec, next) => {
     if (exec.name !== 'pdf_worktree' || !isRecord(exec.arguments)) return next()

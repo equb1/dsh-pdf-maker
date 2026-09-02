@@ -19,6 +19,7 @@ export const operationOutput = {
           'edit',
           'export',
           'screenshot',
+          'ocr',
         ] as const,
       },
       file: { type: 'string' as const, required: true },

@@ -37,4 +37,7 @@ export abstract class PdfService extends Service implements PdfServiceMethods {
   abstract screenshot(
     ...args: Parameters<PdfServiceMethods['screenshot']>
   ): ReturnType<PdfServiceMethods['screenshot']>
+  abstract ocr(
+    ...args: Parameters<PdfServiceMethods['ocr']>
+  ): ReturnType<PdfServiceMethods['ocr']>
 }

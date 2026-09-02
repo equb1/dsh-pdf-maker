@@ -49,6 +49,9 @@ export function editTool(ctx: Context, timeoutMs: number) {
                 'page_number',
                 'flatten',
                 'metadata',
+                'split_pages',
+                'merge_pages',
+                'extract_pages',
               ],
               description: 'Edit command kind.',
             },
@@ -85,6 +88,17 @@ export function editTool(ctx: Context, timeoutMs: number) {
               type: 'integer',
               description:
                 '1-based target insertion index when kind is insert_pages.',
+            },
+            direction: {
+              type: 'string',
+              enum: ['vertical', 'horizontal'],
+              description:
+                'Split direction when kind is split_pages (default vertical = A3 landscape -> 2x A4).',
+            },
+            sources: {
+              type: 'array',
+              description:
+                'Source PDF file paths to merge when kind is merge_pages.',
             },
             opacity: {
               type: 'number',
@@ -401,6 +415,69 @@ function parseEditCommands(values: readonly unknown[]): PdfEditCommand[] {
         sourceFile: record.sourceFile,
         ...(sourcePages !== undefined ? { sourcePages } : {}),
         ...(atPage !== undefined ? { atPage } : {}),
+      }
+    }
+
+    if (record.kind === 'split_pages') {
+      if (
+        !Array.isArray(record.pages) ||
+        record.pages.length === 0 ||
+        !record.pages.every(
+          (n) => typeof n === 'number' && Number.isInteger(n) && n >= 1,
+        )
+      ) {
+        throw pdfError(
+          'split_pages requires a non-empty array of page numbers',
+          'INVALID_REQUEST',
+        )
+      }
+      const direction =
+        record.direction === 'horizontal' ? 'horizontal' : 'vertical'
+      return {
+        kind: 'split_pages',
+        pages: record.pages,
+        direction,
+      }
+    }
+
+    if (record.kind === 'merge_pages') {
+      if (
+        !Array.isArray(record.sources) ||
+        record.sources.length === 0 ||
+        !record.sources.every((s) => typeof s === 'string' && s.length > 0)
+      ) {
+        throw pdfError(
+          'merge_pages requires a non-empty array of source file paths',
+          'INVALID_REQUEST',
+        )
+      }
+      const atPage =
+        typeof record.atPage === 'number' && Number.isInteger(record.atPage)
+          ? record.atPage
+          : undefined
+      return {
+        kind: 'merge_pages',
+        sources: record.sources,
+        ...(atPage !== undefined ? { atPage } : {}),
+      }
+    }
+
+    if (record.kind === 'extract_pages') {
+      if (
+        !Array.isArray(record.pages) ||
+        record.pages.length === 0 ||
+        !record.pages.every(
+          (n) => typeof n === 'number' && Number.isInteger(n) && n >= 1,
+        )
+      ) {
+        throw pdfError(
+          'extract_pages requires a non-empty array of page numbers',
+          'INVALID_REQUEST',
+        )
+      }
+      return {
+        kind: 'extract_pages',
+        pages: record.pages,
       }
     }
 

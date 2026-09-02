@@ -137,3 +137,32 @@ export function isMissingPdfFile(error: unknown): boolean {
   return error instanceof PdfApiError && error.code === 'INVALID_FILE_PATH'
 }
 
+/**
+ * Build the `reorder_pages` order that restores a two-column alternating layout
+ * (left column pages 1..mid then right column mid+1..N, interleaved as
+ * 1, mid+1, 2, mid+2, ...) back to natural reading order 1..N.
+ *
+ * Example: N=4 interleaved is [1,3,2,4]; the returned order [1,3,2,4] applied
+ * via reorder_pages yields [1,2,3,4].
+ */
+export function buildAlternateMergeOrder(count: number): number[] {
+  if (count <= 0) return []
+  const mid = Math.ceil(count / 2)
+  const left = Array.from({ length: mid }, (_, i) => i + 1) // 1..mid
+  const right = Array.from({ length: count - mid }, (_, i) => mid + i + 1)
+  const interleaved: number[] = []
+  const max = Math.max(left.length, right.length)
+  for (let i = 0; i < max; i += 1) {
+    if (i < left.length && left[i] !== undefined)
+      interleaved.push(left[i] as number)
+    if (i < right.length && right[i] !== undefined)
+      interleaved.push(right[i] as number)
+  }
+  // order[k] = 1-based index of page value (k+1) in the interleaved layout.
+  const order: number[] = []
+  for (let k = 1; k <= count; k += 1) {
+    order.push(interleaved.indexOf(k) + 1)
+  }
+  return order
+}
+

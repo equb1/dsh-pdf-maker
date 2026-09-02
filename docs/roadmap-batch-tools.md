@@ -161,6 +161,16 @@ webServer/tools → service ← provider → (adapters)
 
 **性能提示**:tesseract.js 单线程较慢,大文档先做单页或前几页,避免卡死。
 
+**实施状态(已完成,待环境)**:
+- ✅ `tesseract.js@7.0.0` + `tesseract.js-core@7.0.0` 已安装(Apache-2.0)
+- ✅ `chi_sim.traineddata`(44MB)已本地化到 `assets/tessdata/`
+- ✅ `src/host/provider/ocr-operations.ts`(pdfjs 渲染页 → tesseract 识别,离线 langPath/workerPath/corePath)
+- ✅ `pdf_ocr` 工具 + `/pdf-api/ocr` 路由 + `GatewayPdfService.ocr` 已接线
+- ⚠️ **当前沙箱禁用了 Node `worker_threads`**,且 tesseract 的 `worker.min.js` 期望浏览器式全局(`addEventListener`)。实测:
+  - `createWorker` 在沙箱崩溃(127)
+  - OCR 请求触发 `TypeError: r.g.addEventListener is not a function`
+  - **结论**:tesseract.js 依赖 worker 线程,此环境无法运行 OCR。代码/依赖/路由全部就绪,**换到非沙箱、允许 worker 的环境即可启用**。届时先跑 `test/ocr-self-test.mjs` 验证。
+
 ---
 
 ## 6. 关键风险 / 决策点

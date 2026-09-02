@@ -13,6 +13,7 @@ import {
   inspectDocument,
 } from './pdf-operations.ts'
 import { renderScreenshot } from './render-operations.ts'
+import { runOcr } from './ocr-operations.ts'
 import {
   applyReviewAction,
   createWorktree,
@@ -191,5 +192,19 @@ export class GatewayPdfService extends PdfService {
             request.worktreeId as WorktreeId,
           )
     return renderScreenshot(request, draft, signal)
+  }
+
+  async ocr(
+    request: Parameters<PdfServiceMethods['ocr']>[0],
+  ): ReturnType<PdfServiceMethods['ocr']> {
+    const draft =
+      request.worktreeId === undefined
+        ? request.file
+        : await requireDraft(
+            request.workspace,
+            request.file,
+            request.worktreeId as WorktreeId,
+          )
+    return runOcr(request, draft)
   }
 }

@@ -82,6 +82,14 @@ export function createPdfRouter(service: PdfService, sessions: SessionStore) {
         )
         return
       }
+      if (request.method === 'POST' && url.pathname === '/pdf-api/ocr') {
+        sendJson(
+          response,
+          200,
+          await ocrRoute(service, sessions, await readJsonBody(request)),
+        )
+        return
+      }
       response.writeHead(404)
       response.end()
     } catch (error) {
@@ -239,6 +247,38 @@ async function editRoute(
     file: scope.path,
     worktreeId: worktreeId(worktreeIdValue),
     edits: record.edits as import('../service/types.ts').PdfEditCommand[],
+  })
+}
+
+async function ocrRoute(
+  service: PdfService,
+  sessions: SessionStore,
+  body: unknown,
+) {
+  if (typeof body !== 'object' || body === null) {
+    throw pdfError('request body must be a JSON object', 'INVALID_REQUEST')
+  }
+  const record = body as Record<string, unknown>
+  const scope = await resolveAuthorizedPdf(
+    record.file,
+    record.sessionId,
+    sessions,
+  )
+  const pages = Array.isArray(record.pages)
+    ? record.pages.filter(
+        (p): p is number => typeof p === 'number' && Number.isInteger(p) && p >= 1,
+      )
+    : undefined
+  const lang = typeof record.lang === 'string' ? record.lang : undefined
+  const worktreeIdValue = record.worktreeId
+  return service.ocr({
+    workspace: scope.workspace,
+    file: scope.path,
+    ...(worktreeIdValue !== undefined && typeof worktreeIdValue === 'string'
+      ? { worktreeId: worktreeId(worktreeIdValue) }
+      : {}),
+    ...(pages !== undefined ? { pages } : {}),
+    ...(lang !== undefined ? { lang } : {}),
   })
 }
 

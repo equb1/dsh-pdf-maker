@@ -551,4 +551,50 @@ export const worktreeStyles = `
 [data-plugin="dsh-pdf-maker"] .pdf-fullscreen-body .pdf-preview {
   height: 100%;
 }
+
+/* ---- Batch tools panel ---- */
+[data-plugin="dsh-pdf-maker"] .pdf-batch {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-top: 4px;
+}
+
+[data-plugin="dsh-pdf-maker"] .pdf-batch-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+[data-plugin="dsh-pdf-maker"] .pdf-batch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+[data-plugin="dsh-pdf-maker"] .pdf-batch-desc {
+  font-size: 12px;
+  color: #475569;
+  flex: 1;
+  min-width: 160px;
+}
+
+[data-plugin="dsh-pdf-maker"] .pdf-batch-input {
+  min-width: 200px;
+  flex: 1;
+}
+
+[data-plugin="dsh-pdf-maker"] .pdf-batch-input-small {
+  width: 110px;
+}
+
+[data-plugin="dsh-pdf-maker"] .pdf-batch-status {
+  font-size: 12px;
+  color: #0284c7;
+}
 `

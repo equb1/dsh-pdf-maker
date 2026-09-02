@@ -14,6 +14,7 @@ import {
   selectPdfTurn,
 } from '../conversation/pdf-turn-definition.ts'
 import { PdfPreview } from './pdf-preview.tsx'
+import { BatchToolbar } from './batch-toolbar.tsx'
 
 /** Rich turn-tail review and live preview card with visual manual editing toolbox. */
 export function PreviewCard(
@@ -63,6 +64,7 @@ function FilePreviewItem({
   const [loading, setLoading] = React.useState<boolean>(false)
   const [showViewer, setShowViewer] = React.useState<boolean>(true)
   const [showToolbox, setShowToolbox] = React.useState<boolean>(false)
+  const [showBatch, setShowBatch] = React.useState<boolean>(false)
   const [activeTab, setActiveTab] = React.useState<
     'watermark' | 'page_number' | 'flatten'
   >('watermark')
@@ -187,6 +189,18 @@ function FilePreviewItem({
               '🛠️ 可视化编辑',
             )
           : null,
+        worktreeId
+          ? React.createElement(
+              'button',
+              {
+                type: 'button',
+                className: `pdf-btn ${showBatch ? 'pdf-btn-primary' : 'pdf-btn-secondary'}`,
+                style: { padding: '3px 8px', fontSize: '11px' },
+                onClick: () => setShowBatch(!showBatch),
+              },
+              '⚙️ 批处理工具',
+            )
+          : null,
         React.createElement(
           'button',
           {
@@ -226,6 +240,21 @@ function FilePreviewItem({
           : null,
       ),
     ),
+
+    // Batch tools panel (alternate sort / A3 split / merge)
+    showBatch && worktreeId
+      ? React.createElement(BatchToolbar, {
+          file: fileItem.file,
+          sessionId,
+          worktreeId,
+          initialPageCount: fileState?.pageCount,
+          onError: (message) => setErrorMsg(message),
+          onApplied: () => {
+            void fetchState()
+            setRefreshSalt((salt) => salt + 1)
+          },
+        })
+      : null,
 
     // Visual Manual Editing Toolbox
     showToolbox && worktreeId
